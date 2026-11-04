@@ -15,6 +15,14 @@ Please give feedback to the authors if improvement is realized. It is distribute
 	#define PTX_ASM	1
 #endif
 
+// Experimental: reuse the Montgomery preconditioner of a broadcast operand.
+#if !defined(GENEFER_GPU_SHARED_TWIDDLE)
+#define GENEFER_GPU_SHARED_TWIDDLE 0
+#endif
+#if GENEFER_GPU_SHARED_TWIDDLE != 0 && GENEFER_GPU_SHARED_TWIDDLE != 1
+#error GENEFER_GPU_SHARED_TWIDDLE must be 0 or 1
+#endif
+
 #if !defined(N_SZ)
 #define N_SZ		65536u
 #define LN_SZ		16
@@ -159,6 +167,37 @@ INLINE uint4_32 mulmod4(const uint4_32 lhs, const uint4_32 rhs, const uint2_32 p
 	return (uint4_32)(mulmod2(lhs.s01, rhs.s01, pq), mulmod2(lhs.s23, rhs.s23, pq));
 }
 
+// wq = w * q (mod 2^32). Reassociating the low product preserves the exact
+// Montgomery correction: (a * w) * q == a * wq (mod 2^32).
+// Canonical inputs and outputs, valid for both the 31-bit and 32-bit primes.
+INLINE uint_32 mulmod_preconditioned(const uint_32 a, const uint_32 w, const uint_32 wq, const uint2_32 pq)
+{
+	const uint_32 hi = mul_hi(a, w);
+	const uint_32 mp = mul_hi(a * wq, pq.s0);
+	return submod(hi, mp, pq.s0);
+}
+
+INLINE uint2_32 mulmod2_broadcast(const uint2_32 lhs, const uint_32 rhs, const uint2_32 pq)
+{
+#if GENEFER_GPU_SHARED_TWIDDLE
+	const uint_32 rhsq = rhs * pq.s1;
+	return (uint2_32)(mulmod_preconditioned(lhs.s0, rhs, rhsq, pq), mulmod_preconditioned(lhs.s1, rhs, rhsq, pq));
+#else
+	return mulmod2(lhs, (uint2_32)(rhs), pq);
+#endif
+}
+
+INLINE uint4_32 mulmod4_broadcast(const uint4_32 lhs, const uint_32 rhs, const uint2_32 pq)
+{
+#if GENEFER_GPU_SHARED_TWIDDLE
+	const uint_32 rhsq = rhs * pq.s1;
+	return (uint4_32)(mulmod_preconditioned(lhs.s0, rhs, rhsq, pq), mulmod_preconditioned(lhs.s1, rhs, rhsq, pq),
+		mulmod_preconditioned(lhs.s2, rhs, rhsq, pq), mulmod_preconditioned(lhs.s3, rhs, rhsq, pq));
+#else
+	return mulmod4(lhs, (uint4_32)(rhs), pq);
+#endif
+}
+
 // --- uint96/int96 ---
 
 typedef struct { uint_32 s0; uint_64 s1; } uint96;
@@ -274,26 +313,26 @@ INLINE uint96 uint96_mul_64_32(const uint_64 x, const uint_32 y)
 
 #define FWD2v2(z0, z1, w) \
 { \
-	const uint2_32 t = mulmod2(z1, w, pq); \
+	const uint2_32 t = mulmod2_broadcast(z1, w, pq); \
 	z1 = submod2(z0, t, pq.s0); z0 = addmod2(z0, t, pq.s0); \
 }
 
 #define BCK2v2(z0, z1, win) \
 { \
 	const uint2_32 t = submod2(z1, z0, pq.s0); z0 = addmod2(z0, z1, pq.s0); \
-	z1 = mulmod2(t, win, pq); \
+	z1 = mulmod2_broadcast(t, win, pq); \
 }
 
 #define FWD2v4(z0, z1, w) \
 { \
-	const uint4_32 t = mulmod4(z1, w, pq); \
+	const uint4_32 t = mulmod4_broadcast(z1, w, pq); \
 	z1 = submod4(z0, t, pq.s0); z0 = addmod4(z0, t, pq.s0); \
 }
 
 #define BCK2v4(z0, z1, win) \
 { \
 	const uint4_32 t = submod4(z1, z0, pq.s0); z0 = addmod4(z0, z1, pq.s0); \
-	z1 = mulmod4(t, win, pq); \
+	z1 = mulmod4_broadcast(t, win, pq); \
 }
 
 INLINE void _loadg1(const sz_t n, uint_32 * const zl, __global const uint_32 * restrict const z, const sz_t s) { for (sz_t l = 0; l < n; ++l) zl[l] = z[l * s]; }
@@ -386,7 +425,7 @@ INLINE void _backward4x2(const uint2_32 pq, uint2_32 z[4], const uint_32 win1, c
 INLINE void _forward4x2_0(const uint2_32 pq, const uint4_32 f0, uint2_32 z[4])
 {
 	const uint_32 rsq = f0.s0, mfim = f0.s1, sqrti = f0.s2, isqrti = f0.s3;
-	z[0] = mulmod2(z[0], rsq, pq); z[1] = mulmod2(z[1], rsq, pq);
+	z[0] = mulmod2_broadcast(z[0], rsq, pq); z[1] = mulmod2_broadcast(z[1], rsq, pq);
 	FWD2v2(z[0], z[2], mfim); FWD2v2(z[1], z[3], mfim);
 	FWD2v2(z[0], z[1], sqrti); FWD2v2(z[2], z[3], isqrti);
 }
@@ -456,7 +495,7 @@ INLINE void _backward4x4(const uint2_32 pq, uint4_32 z[4], const uint_32 win1, c
 INLINE void _forward4x4_0(const uint2_32 pq, const uint4_32 f0, uint4_32 z[4])
 {
 	const uint_32 rsq = f0.s0, mfim = f0.s1, sqrti = f0.s2, isqrti = f0.s3;
-	z[0] = mulmod4(z[0], rsq, pq); z[1] = mulmod4(z[1], rsq, pq);
+	z[0] = mulmod4_broadcast(z[0], rsq, pq); z[1] = mulmod4_broadcast(z[1], rsq, pq);
 	FWD2v4(z[0], z[2], mfim); FWD2v4(z[1], z[3], mfim);
 	FWD2v4(z[0], z[1], sqrti); FWD2v4(z[2], z[3], isqrti);
 }
@@ -2367,7 +2406,7 @@ INLINE int4_32 normalize_1(__global uint4_32 * restrict const zi, __global int_6
 	__local int_64 * const cl, const sz_t gid, const sz_t lid,
 	const uint_32 b, const uint_32 b_inv, const int b_s, const bool dup)
 {
-	const uint4_32 u1 = mulmod4(zi[0 * N_SZ / 4], NORM1, PQ1), u2 = mulmod4(zi[1 * N_SZ / 4], NORM2, PQ2);
+	const uint4_32 u1 = mulmod4_broadcast(zi[0 * N_SZ / 4], NORM1, PQ1), u2 = mulmod4_broadcast(zi[1 * N_SZ / 4], NORM2, PQ2);
 	int4_32 r;
 
 #if RNS_SZ == 2
@@ -2382,7 +2421,7 @@ INLINE int4_32 normalize_1(__global uint4_32 * restrict const zi, __global int_6
 
 #else
 
-	const uint4_32 u3 = mulmod4(zi[2 * N_SZ / 4], NORM3, PQ3);
+	const uint4_32 u3 = mulmod4_broadcast(zi[2 * N_SZ / 4], NORM3, PQ3);
 
 	int96 l0 = garner3(u1.s0, u2.s0, u3.s0), l1 = garner3(u1.s1, u2.s1, u3.s1);
 	int96 l2 = garner3(u1.s2, u2.s2, u3.s2), l3 = garner3(u1.s3, u2.s3, u3.s3);

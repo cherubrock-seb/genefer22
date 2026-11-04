@@ -16,6 +16,14 @@ Please give feedback to the authors if improvement is realized. It is distribute
 
 #include "ocl/kernel.h"
 
+// Default-off until independent GPU correctness and throughput validation.
+#if !defined(GENEFER_GPU_SHARED_TWIDDLE)
+#define GENEFER_GPU_SHARED_TWIDDLE 0
+#endif
+#if GENEFER_GPU_SHARED_TWIDDLE != 0 && GENEFER_GPU_SHARED_TWIDDLE != 1
+#error GENEFER_GPU_SHARED_TWIDDLE must be 0 or 1
+#endif
+
 // #define USE_WI	1
 // #define	TUNE	1
 
@@ -964,6 +972,8 @@ public:
 		_pEngine = new engines<RNS_SIZE, is32>(eng_platform, is_boinc_platform ? 0 : device, static_cast<int>(n), isBoinc, num_regs, verbose);
 
 		std::ostringstream src;
+
+		src << "#define GENEFER_GPU_SHARED_TWIDDLE " << GENEFER_GPU_SHARED_TWIDDLE << std::endl;
 
 		src << "#define N_SZ\t" << (1u << n) << "u" << std::endl;
 		src << "#define LN_SZ\t" << n << std::endl;
