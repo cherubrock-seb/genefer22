@@ -15,6 +15,14 @@ Please give feedback to the authors if improvement is realized. It is distribute
 	#define PTX_ASM	1
 #endif
 
+// Experimental: one reduction for a sum/difference of two wide products.
+#if !defined(GENEFER_GPU_FUSED_PRODUCTS)
+#define GENEFER_GPU_FUSED_PRODUCTS 0
+#endif
+#if GENEFER_GPU_FUSED_PRODUCTS != 0 && GENEFER_GPU_FUSED_PRODUCTS != 1
+#error GENEFER_GPU_FUSED_PRODUCTS must be 0 or 1
+#endif
+
 #if !defined(N_SZ)
 #define N_SZ		65536u
 #define LN_SZ		16
@@ -121,6 +129,42 @@ INLINE uint_32 mulmod(const uint_32 lhs, const uint_32 rhs, const uint2_32 pq)
 }
 
 INLINE uint_32 sqrmod(const uint_32 lhs, const uint2_32 pq) { return mulmod(lhs, lhs, pq); }
+
+// Requires t < p * 2^32. Thus hi(t) and hi(m*p) are both below p, and the
+// existing correction returns a canonical residue for either modulus width.
+INLINE uint_32 montgomery_reduce_wide(const uint_64 t, const uint2_32 pq)
+{
+	const uint_32 lo = (uint_32)(t), hi = (uint_32)(t >> 32);
+	const uint_32 mp = mul_hi(lo * pq.s1, pq.s0);
+	return submod(hi, mp, pq.s0);
+}
+
+// Canonical a,b,c,d < p. Reduce a*b + c*d before Montgomery reduction.
+INLINE uint_32 montgomery_sum_products(const uint_32 a, const uint_32 b,
+	const uint_32 c, const uint_32 d, const uint2_32 pq)
+{
+	const uint_64 u = a * (uint_64)(b), v = c * (uint_64)(d);
+	uint_64 t = u + v;
+#if defined(IS32)
+	// The true sum may be 65 bits. Since it is below 2*p*2^32, at most
+	// one subtraction is needed. Unsigned wrap retains the carry case.
+	const uint_64 pr = (uint_64)(pq.s0) << 32;
+	t -= ((t < u) || (t >= pr)) ? pr : (uint_64)(0);
+#endif
+	// For the 31-bit primes, 2*p^2 < p*2^32, so no adjustment is needed.
+	return montgomery_reduce_wide(t, pq);
+}
+
+INLINE uint_32 montgomery_difference_products(const uint_32 a, const uint_32 b,
+	const uint_32 c, const uint_32 d, const uint2_32 pq)
+{
+	const uint_64 u = a * (uint_64)(b), v = c * (uint_64)(d);
+	const uint_64 pr = (uint_64)(pq.s0) << 32;
+	// A negative difference is wrapped by unsigned arithmetic; adding pR
+	// yields its nonnegative representative below pR without signed overflow.
+	const uint_64 t = u - v + ((u < v) ? pr : (uint_64)(0));
+	return montgomery_reduce_wide(t, pq);
+}
 
 INLINE int_32 get_int(const uint_32 n, const uint_32 p) { return (int_32)(n - ((n >= p / 2) ? p : 0)); }
 INLINE uint_32 set_int(const int_32 i, const uint_32 p) { return (uint_32)(i + ((i < 0) ? p : 0)); }
@@ -244,6 +288,42 @@ INLINE uint96 uint96_mul_64_32(const uint_64 x, const uint_32 y)
 	z1 = mulmod(t, win, pq); \
 }
 
+#if GENEFER_GPU_FUSED_PRODUCTS
+
+#define SQR2(z0, z1, w) \
+{ \
+	const uint_32 a0 = (z0), a1 = (z1), tw = (w); \
+	const uint_32 b2 = sqrmod(a1, pq); \
+	z1 = mulmod(addmod(a0, a0, pq.s0), a1, pq); \
+	z0 = montgomery_sum_products(a0, a0, b2, tw, pq); \
+}
+
+#define SQR2N(z0, z1, w) \
+{ \
+	const uint_32 a0 = (z0), a1 = (z1), tw = (w); \
+	const uint_32 b2 = sqrmod(a1, pq); \
+	z1 = mulmod(addmod(a0, a0, pq.s0), a1, pq); \
+	z0 = montgomery_difference_products(a0, a0, b2, tw, pq); \
+}
+
+#define MUL2(z0, z1, zp0, zp1, w) \
+{ \
+	const uint_32 a0 = (z0), a1 = (z1), b0 = (zp0), b1 = (zp1), tw = (w); \
+	const uint_32 ab = mulmod(a1, b1, pq); \
+	z1 = montgomery_sum_products(a0, b1, b0, a1, pq); \
+	z0 = montgomery_sum_products(a0, b0, ab, tw, pq); \
+}
+
+#define MUL2N(z0, z1, zp0, zp1, w) \
+{ \
+	const uint_32 a0 = (z0), a1 = (z1), b0 = (zp0), b1 = (zp1), tw = (w); \
+	const uint_32 ab = mulmod(a1, b1, pq); \
+	z1 = montgomery_sum_products(a0, b1, b0, a1, pq); \
+	z0 = montgomery_difference_products(a0, b0, ab, tw, pq); \
+}
+
+#else
+
 #define SQR2(z0, z1, w) \
 { \
 	const uint_32 t = mulmod(sqrmod(z1, pq), w, pq); \
@@ -271,6 +351,8 @@ INLINE uint96 uint96_mul_64_32(const uint_64 x, const uint_32 y)
 	z1 = addmod(mulmod(z0, zp1, pq), mulmod(zp0, z1, pq), pq.s0); \
 	z0 = submod(mulmod(z0, zp0, pq), t, pq.s0); \
 }
+
+#endif // GENEFER_GPU_FUSED_PRODUCTS
 
 #define FWD2v2(z0, z1, w) \
 { \

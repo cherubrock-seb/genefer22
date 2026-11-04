@@ -27,6 +27,14 @@ static const char * const src_ocl_kernel = \
 "	#define PTX_ASM	1\n" \
 "#endif\n" \
 "\n" \
+"// Experimental: one reduction for a sum/difference of two wide products.\n" \
+"#if !defined(GENEFER_GPU_FUSED_PRODUCTS)\n" \
+"#define GENEFER_GPU_FUSED_PRODUCTS 0\n" \
+"#endif\n" \
+"#if GENEFER_GPU_FUSED_PRODUCTS != 0 && GENEFER_GPU_FUSED_PRODUCTS != 1\n" \
+"#error GENEFER_GPU_FUSED_PRODUCTS must be 0 or 1\n" \
+"#endif\n" \
+"\n" \
 "#if !defined(N_SZ)\n" \
 "#define N_SZ		65536u\n" \
 "#define LN_SZ		16\n" \
@@ -133,6 +141,42 @@ static const char * const src_ocl_kernel = \
 "}\n" \
 "\n" \
 "INLINE uint_32 sqrmod(const uint_32 lhs, const uint2_32 pq) { return mulmod(lhs, lhs, pq); }\n" \
+"\n" \
+"// Requires t < p * 2^32. Thus hi(t) and hi(m*p) are both below p, and the\n" \
+"// existing correction returns a canonical residue for either modulus width.\n" \
+"INLINE uint_32 montgomery_reduce_wide(const uint_64 t, const uint2_32 pq)\n" \
+"{\n" \
+"	const uint_32 lo = (uint_32)(t), hi = (uint_32)(t >> 32);\n" \
+"	const uint_32 mp = mul_hi(lo * pq.s1, pq.s0);\n" \
+"	return submod(hi, mp, pq.s0);\n" \
+"}\n" \
+"\n" \
+"// Canonical a,b,c,d < p. Reduce a*b + c*d before Montgomery reduction.\n" \
+"INLINE uint_32 montgomery_sum_products(const uint_32 a, const uint_32 b,\n" \
+"	const uint_32 c, const uint_32 d, const uint2_32 pq)\n" \
+"{\n" \
+"	const uint_64 u = a * (uint_64)(b), v = c * (uint_64)(d);\n" \
+"	uint_64 t = u + v;\n" \
+"#if defined(IS32)\n" \
+"	// The true sum may be 65 bits. Since it is below 2*p*2^32, at most\n" \
+"	// one subtraction is needed. Unsigned wrap retains the carry case.\n" \
+"	const uint_64 pr = (uint_64)(pq.s0) << 32;\n" \
+"	t -= ((t < u) || (t >= pr)) ? pr : (uint_64)(0);\n" \
+"#endif\n" \
+"	// For the 31-bit primes, 2*p^2 < p*2^32, so no adjustment is needed.\n" \
+"	return montgomery_reduce_wide(t, pq);\n" \
+"}\n" \
+"\n" \
+"INLINE uint_32 montgomery_difference_products(const uint_32 a, const uint_32 b,\n" \
+"	const uint_32 c, const uint_32 d, const uint2_32 pq)\n" \
+"{\n" \
+"	const uint_64 u = a * (uint_64)(b), v = c * (uint_64)(d);\n" \
+"	const uint_64 pr = (uint_64)(pq.s0) << 32;\n" \
+"	// A negative difference is wrapped by unsigned arithmetic; adding pR\n" \
+"	// yields its nonnegative representative below pR without signed overflow.\n" \
+"	const uint_64 t = u - v + ((u < v) ? pr : (uint_64)(0));\n" \
+"	return montgomery_reduce_wide(t, pq);\n" \
+"}\n" \
 "\n" \
 "INLINE int_32 get_int(const uint_32 n, const uint_32 p) { return (int_32)(n - ((n >= p / 2) ? p : 0)); }\n" \
 "INLINE uint_32 set_int(const int_32 i, const uint_32 p) { return (uint_32)(i + ((i < 0) ? p : 0)); }\n" \
@@ -256,6 +300,42 @@ static const char * const src_ocl_kernel = \
 "	z1 = mulmod(t, win, pq); \\\n" \
 "}\n" \
 "\n" \
+"#if GENEFER_GPU_FUSED_PRODUCTS\n" \
+"\n" \
+"#define SQR2(z0, z1, w) \\\n" \
+"{ \\\n" \
+"	const uint_32 a0 = (z0), a1 = (z1), tw = (w); \\\n" \
+"	const uint_32 b2 = sqrmod(a1, pq); \\\n" \
+"	z1 = mulmod(addmod(a0, a0, pq.s0), a1, pq); \\\n" \
+"	z0 = montgomery_sum_products(a0, a0, b2, tw, pq); \\\n" \
+"}\n" \
+"\n" \
+"#define SQR2N(z0, z1, w) \\\n" \
+"{ \\\n" \
+"	const uint_32 a0 = (z0), a1 = (z1), tw = (w); \\\n" \
+"	const uint_32 b2 = sqrmod(a1, pq); \\\n" \
+"	z1 = mulmod(addmod(a0, a0, pq.s0), a1, pq); \\\n" \
+"	z0 = montgomery_difference_products(a0, a0, b2, tw, pq); \\\n" \
+"}\n" \
+"\n" \
+"#define MUL2(z0, z1, zp0, zp1, w) \\\n" \
+"{ \\\n" \
+"	const uint_32 a0 = (z0), a1 = (z1), b0 = (zp0), b1 = (zp1), tw = (w); \\\n" \
+"	const uint_32 ab = mulmod(a1, b1, pq); \\\n" \
+"	z1 = montgomery_sum_products(a0, b1, b0, a1, pq); \\\n" \
+"	z0 = montgomery_sum_products(a0, b0, ab, tw, pq); \\\n" \
+"}\n" \
+"\n" \
+"#define MUL2N(z0, z1, zp0, zp1, w) \\\n" \
+"{ \\\n" \
+"	const uint_32 a0 = (z0), a1 = (z1), b0 = (zp0), b1 = (zp1), tw = (w); \\\n" \
+"	const uint_32 ab = mulmod(a1, b1, pq); \\\n" \
+"	z1 = montgomery_sum_products(a0, b1, b0, a1, pq); \\\n" \
+"	z0 = montgomery_difference_products(a0, b0, ab, tw, pq); \\\n" \
+"}\n" \
+"\n" \
+"#else\n" \
+"\n" \
 "#define SQR2(z0, z1, w) \\\n" \
 "{ \\\n" \
 "	const uint_32 t = mulmod(sqrmod(z1, pq), w, pq); \\\n" \
@@ -283,6 +363,8 @@ static const char * const src_ocl_kernel = \
 "	z1 = addmod(mulmod(z0, zp1, pq), mulmod(zp0, z1, pq), pq.s0); \\\n" \
 "	z0 = submod(mulmod(z0, zp0, pq), t, pq.s0); \\\n" \
 "}\n" \
+"\n" \
+"#endif // GENEFER_GPU_FUSED_PRODUCTS\n" \
 "\n" \
 "#define FWD2v2(z0, z1, w) \\\n" \
 "{ \\\n" \
