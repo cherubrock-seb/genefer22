@@ -1041,6 +1041,37 @@ INLINE void mul_8x1(const uint2_32 pq, __local uint2_32 * restrict const Z, cons
 
 // --- v4
 
+#if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4
+// Distinct entry points also identify a matching external kernel source.
+#define square64 square64_register
+#define square256 square256_register
+#define square1024 square1024_register
+#define square4096 square4096_register
+
+// The innermost radix-4 stages and the square own the same four vectors.
+INLINE void square_register_core(const uint2_32 pq, __local uint4_32 * restrict const Z,
+	__global const uint_32 * restrict const w, __global const uint_32 * restrict const wi, const sz_t sj, const sz_t sji)
+{
+	barrier(CLK_LOCAL_MEM_FENCE);
+	uint4_32 zl[4]; _loadl4(4, zl, Z, 1);
+	{
+		DECLARE_W12(sj);
+		_forward4x4(pq, zl, w1, w2);
+	}
+	{
+		DECLARE_W2_4(sj);
+		DECLARE_WIN2_4(sji);
+		_square4x2v4(pq, &zl[0], &w2[0], &win2[0]);
+		_square4x2v4(pq, &zl[2], &w2[2], &win2[2]);
+	}
+	{
+		DECLARE_WIN12(sji);
+		_backward4x4(pq, zl, win1, win2);
+	}
+	_storel4(4, Z, 1, zl);
+}
+#endif
+
 INLINE void square_4x4(const uint2_32 pq, __local uint4_32 * restrict const Z,
 	__global const uint_32 * restrict const w, __global const uint_32 * restrict const wi, const sz_t sj, const sz_t sji)
 {
@@ -1680,9 +1711,13 @@ void square64(__global VTYPE * restrict const zg, __global const uint_32 * restr
 	DECLARE_VAR_64();
 
 	forward_4i(pq, L64S / 4, Zi16, L64S / 4, zk, w, sj / (L64S / 4));
+#if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4
+	square_register_core(pq, Z4, w, wi, sj, sji);
+#else
 	forward_4(pq, L64S / 16, Zi4, w, sj / (L64S / 16));
 	square_4(pq, Z4, w, wi, sj, sji);
 	backward_4(pq, L64S / 16, Zi4, wi, sji / (L64S / 16));
+#endif
 	backward_4o(pq, L64S / 4, zk, L64S / 4, Zi16, wi, sji / (L64S / 4));
 }
 
@@ -1759,9 +1794,13 @@ void square256(__global VTYPE * restrict const zg, __global const uint_32 * rest
 
 	forward_4i(pq, L256S / 4, Zi64, L256S / 4, zk, w, sj / (L256S / 4));
 	forward_4(pq, L256S / 16, Zi16, w, sj / (L256S / 16));
+#if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4
+	square_register_core(pq, Z4, w, wi, sj, sji);
+#else
 	forward_4(pq, L256S / 64, Zi4, w, sj / (L256S / 64));
 	square_4(pq, Z4, w, wi, sj, sji);
 	backward_4(pq, L256S / 64, Zi4, wi, sji / (L256S / 64));
+#endif
 	backward_4(pq, L256S / 16, Zi16, wi, sji / (L256S / 16));
 	backward_4o(pq, L256S / 4, zk, L256S / 4, Zi64, wi, sji / (L256S / 4));
 }
@@ -1848,9 +1887,13 @@ void square1024(__global VTYPE * restrict const zg, __global const uint_32 * res
 	forward_4i(pq, L1024S / 4, Zi256, L1024S / 4, zk, w, sj / (L1024S / 4));
 	forward_4(pq, L1024S / 16, Zi64, w, sj / (L1024S / 16));
 	forward_4(pq, L1024S / 64, Zi16, w, sj / (L1024S / 64));
+#if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4
+	square_register_core(pq, Z4, w, wi, sj, sji);
+#else
 	forward_4(pq, L1024S / 256, Zi4, w, sj / (L1024S / 256));
 	square_4(pq, Z4, w, wi, sj, sji);
 	backward_4(pq, L1024S / 256, Zi4, wi, sji / (L1024S / 256));
+#endif
 	backward_4(pq, L1024S / 64, Zi16, wi, sji / (L1024S / 64));
 	backward_4(pq, L1024S / 16, Zi64, wi, sji / (L1024S / 16));
 	backward_4o(pq, L1024S / 4, zk, L1024S / 4, Zi256, wi, sji / (L1024S / 4));
@@ -1939,9 +1982,13 @@ void square4096(__global VTYPE * restrict const zg, __global const uint_32 * res
 	forward_4(pq, L4096S / 16, Zi256, w, sj / (L4096S / 16));
 	forward_4(pq, L4096S / 64, Zi64, w, sj / (L4096S / 64));
 	forward_4(pq, L4096S / 256, Zi16, w, sj / (L4096S / 256));
+#if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4
+	square_register_core(pq, Z4, w, wi, sj, sji);
+#else
 	forward_4(pq, L4096S / 1024, Zi4, w, sj / (L4096S / 1024));
 	square_4(pq, Z4, w, wi, sj, sji);
 	backward_4(pq, L4096S / 1024, Zi4, wi, sji / (L4096S / 1024));
+#endif
 	backward_4(pq, L4096S / 256, Zi16, wi, sji / (L4096S / 256));
 	backward_4(pq, L4096S / 64, Zi64, wi, sji / (L4096S / 64));
 	backward_4(pq, L4096S / 16, Zi256, wi, sji / (L4096S / 16));

@@ -21,6 +21,12 @@ Please give feedback to the authors if improvement is realized. It is distribute
 
 #define VSIZE	4
 
+#ifndef GENEFER_GPU_REGISTER_SQUARE_CORE
+#define GENEFER_GPU_REGISTER_SQUARE_CORE 0
+#endif
+static_assert(GENEFER_GPU_REGISTER_SQUARE_CORE == 0 || GENEFER_GPU_REGISTER_SQUARE_CORE == 1,
+	"GENEFER_GPU_REGISTER_SQUARE_CORE must be 0 or 1");
+
 // TUNE must be set if CHECK is set
 // #define CHECK_ALL_FUNCTIONS		1
 // #define CHECK_RADIX4_FUNCTIONS	1
@@ -423,6 +429,35 @@ public:
 		_pSplit = new splitter(size_t(_ln), CHUNK256, CHUNK1024, sizeof(ZP), VSIZE, 12, getLocalMemSize(), getMaxWorkGroupSize());
 #endif
 	}
+
+#if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4 && !defined(CHECK_RADIX4_FUNCTIONS)
+	void prepareRegisterSquares(const std::ostringstream & src, const bool verbose)
+	{
+#if !defined(TUNE)
+		// Odd fixed plans use the other square kernels.
+		if (_ln < 12 || _ln > 22 || (_ln & 1) != 0) return;
+#endif
+		cl_program program = tryBuildAuxProgram("#define GENEFER_GPU_REGISTER_SQUARE_CORE 1\n" + src.str());
+		if (program == nullptr)
+		{
+			if (verbose) pio::print("Register square kernels unavailable. Using baseline.\n");
+			return;
+		}
+		auto select = [&](cl_kernel & original, const char * name, size_t groupSize)
+		{
+			cl_kernel candidate = tryTransformKernel(program, name, groupSize, _z, _w);
+			if (candidate == nullptr) return;
+			_releaseKernel(original);
+			original = candidate;
+			if (verbose) pio::print(std::string("Register square kernel: ") + name + ".\n");
+		};
+		select(_square64, "square64_register", 64 * BLK64 / (4 * VSIZE));
+		select(_square256, "square256_register", 256 * BLK256 / (4 * VSIZE));
+		select(_square1024, "square1024_register", 1024 * BLK1024 / (4 * VSIZE));
+		select(_square4096, "square4096_register", 4096 * BLK4096 / (4 * VSIZE));
+		clReleaseProgram(program);
+	}
+#endif
 
 	void releaseKernels()
 	{
@@ -1042,6 +1077,9 @@ public:
 		_pEngine->loadProgram(src.str());
 		_pEngine->allocMemory();
 		_pEngine->createKernels(b);
+#if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4 && !defined(CHECK_RADIX4_FUNCTIONS)
+		_pEngine->prepareRegisterSquares(src, verbose);
+#endif
 
 		ZP1 * const wr1 = new ZP1[size];
 		ZP2 * const wr2 = new ZP2[size];

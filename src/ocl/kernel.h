@@ -1053,6 +1053,37 @@ static const char * const src_ocl_kernel = \
 "\n" \
 "// --- v4\n" \
 "\n" \
+"#if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4\n" \
+"// Distinct entry points also identify a matching external kernel source.\n" \
+"#define square64 square64_register\n" \
+"#define square256 square256_register\n" \
+"#define square1024 square1024_register\n" \
+"#define square4096 square4096_register\n" \
+"\n" \
+"// The innermost radix-4 stages and the square own the same four vectors.\n" \
+"INLINE void square_register_core(const uint2_32 pq, __local uint4_32 * restrict const Z,\n" \
+"	__global const uint_32 * restrict const w, __global const uint_32 * restrict const wi, const sz_t sj, const sz_t sji)\n" \
+"{\n" \
+"	barrier(CLK_LOCAL_MEM_FENCE);\n" \
+"	uint4_32 zl[4]; _loadl4(4, zl, Z, 1);\n" \
+"	{\n" \
+"		DECLARE_W12(sj);\n" \
+"		_forward4x4(pq, zl, w1, w2);\n" \
+"	}\n" \
+"	{\n" \
+"		DECLARE_W2_4(sj);\n" \
+"		DECLARE_WIN2_4(sji);\n" \
+"		_square4x2v4(pq, &zl[0], &w2[0], &win2[0]);\n" \
+"		_square4x2v4(pq, &zl[2], &w2[2], &win2[2]);\n" \
+"	}\n" \
+"	{\n" \
+"		DECLARE_WIN12(sji);\n" \
+"		_backward4x4(pq, zl, win1, win2);\n" \
+"	}\n" \
+"	_storel4(4, Z, 1, zl);\n" \
+"}\n" \
+"#endif\n" \
+"\n" \
 "INLINE void square_4x4(const uint2_32 pq, __local uint4_32 * restrict const Z,\n" \
 "	__global const uint_32 * restrict const w, __global const uint_32 * restrict const wi, const sz_t sj, const sz_t sji)\n" \
 "{\n" \
@@ -1692,9 +1723,13 @@ static const char * const src_ocl_kernel = \
 "	DECLARE_VAR_64();\n" \
 "\n" \
 "	forward_4i(pq, L64S / 4, Zi16, L64S / 4, zk, w, sj / (L64S / 4));\n" \
+"#if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4\n" \
+"	square_register_core(pq, Z4, w, wi, sj, sji);\n" \
+"#else\n" \
 "	forward_4(pq, L64S / 16, Zi4, w, sj / (L64S / 16));\n" \
 "	square_4(pq, Z4, w, wi, sj, sji);\n" \
 "	backward_4(pq, L64S / 16, Zi4, wi, sji / (L64S / 16));\n" \
+"#endif\n" \
 "	backward_4o(pq, L64S / 4, zk, L64S / 4, Zi16, wi, sji / (L64S / 4));\n" \
 "}\n" \
 "\n" \
@@ -1771,9 +1806,13 @@ static const char * const src_ocl_kernel = \
 "\n" \
 "	forward_4i(pq, L256S / 4, Zi64, L256S / 4, zk, w, sj / (L256S / 4));\n" \
 "	forward_4(pq, L256S / 16, Zi16, w, sj / (L256S / 16));\n" \
+"#if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4\n" \
+"	square_register_core(pq, Z4, w, wi, sj, sji);\n" \
+"#else\n" \
 "	forward_4(pq, L256S / 64, Zi4, w, sj / (L256S / 64));\n" \
 "	square_4(pq, Z4, w, wi, sj, sji);\n" \
 "	backward_4(pq, L256S / 64, Zi4, wi, sji / (L256S / 64));\n" \
+"#endif\n" \
 "	backward_4(pq, L256S / 16, Zi16, wi, sji / (L256S / 16));\n" \
 "	backward_4o(pq, L256S / 4, zk, L256S / 4, Zi64, wi, sji / (L256S / 4));\n" \
 "}\n" \
@@ -1860,9 +1899,13 @@ static const char * const src_ocl_kernel = \
 "	forward_4i(pq, L1024S / 4, Zi256, L1024S / 4, zk, w, sj / (L1024S / 4));\n" \
 "	forward_4(pq, L1024S / 16, Zi64, w, sj / (L1024S / 16));\n" \
 "	forward_4(pq, L1024S / 64, Zi16, w, sj / (L1024S / 64));\n" \
+"#if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4\n" \
+"	square_register_core(pq, Z4, w, wi, sj, sji);\n" \
+"#else\n" \
 "	forward_4(pq, L1024S / 256, Zi4, w, sj / (L1024S / 256));\n" \
 "	square_4(pq, Z4, w, wi, sj, sji);\n" \
 "	backward_4(pq, L1024S / 256, Zi4, wi, sji / (L1024S / 256));\n" \
+"#endif\n" \
 "	backward_4(pq, L1024S / 64, Zi16, wi, sji / (L1024S / 64));\n" \
 "	backward_4(pq, L1024S / 16, Zi64, wi, sji / (L1024S / 16));\n" \
 "	backward_4o(pq, L1024S / 4, zk, L1024S / 4, Zi256, wi, sji / (L1024S / 4));\n" \
@@ -1951,9 +1994,13 @@ static const char * const src_ocl_kernel = \
 "	forward_4(pq, L4096S / 16, Zi256, w, sj / (L4096S / 16));\n" \
 "	forward_4(pq, L4096S / 64, Zi64, w, sj / (L4096S / 64));\n" \
 "	forward_4(pq, L4096S / 256, Zi16, w, sj / (L4096S / 256));\n" \
+"#if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4\n" \
+"	square_register_core(pq, Z4, w, wi, sj, sji);\n" \
+"#else\n" \
 "	forward_4(pq, L4096S / 1024, Zi4, w, sj / (L4096S / 1024));\n" \
 "	square_4(pq, Z4, w, wi, sj, sji);\n" \
 "	backward_4(pq, L4096S / 1024, Zi4, wi, sji / (L4096S / 1024));\n" \
+"#endif\n" \
 "	backward_4(pq, L4096S / 256, Zi16, wi, sji / (L4096S / 256));\n" \
 "	backward_4(pq, L4096S / 64, Zi64, wi, sji / (L4096S / 64));\n" \
 "	backward_4(pq, L4096S / 16, Zi256, wi, sji / (L4096S / 16));\n" \
