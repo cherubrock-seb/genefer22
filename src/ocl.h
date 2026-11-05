@@ -381,6 +381,26 @@ public:
 	size_t getTimerResolution() const { return _timerResolution; }
 	bool isIntel() const { return (_vendor == EVendor::INTEL); }
 
+protected:
+	bool supportsWorkGroup1D(const cl_kernel kernel, const size_t count) const
+	{
+		if (kernel == nullptr || count > _maxWorkGroupSize) return false;
+
+		size_t bytes = 0;
+		if (clGetDeviceInfo(_device, CL_DEVICE_MAX_WORK_ITEM_SIZES, 0, nullptr, &bytes) != CL_SUCCESS ||
+			bytes < sizeof(size_t) || bytes % sizeof(size_t) != 0) return false;
+
+		std::vector<size_t> maxItems(bytes / sizeof(size_t));
+		size_t kernelLimit = 0;
+		cl_ulong localBytes = 0;
+		return clGetDeviceInfo(_device, CL_DEVICE_MAX_WORK_ITEM_SIZES, bytes, maxItems.data(), nullptr) == CL_SUCCESS &&
+			count <= maxItems[0] &&
+			clGetKernelWorkGroupInfo(kernel, _device, CL_KERNEL_WORK_GROUP_SIZE, sizeof(kernelLimit), &kernelLimit, nullptr) == CL_SUCCESS &&
+			count <= kernelLimit &&
+			clGetKernelWorkGroupInfo(kernel, _device, CL_KERNEL_LOCAL_MEM_SIZE, sizeof(localBytes), &localBytes, nullptr) == CL_SUCCESS &&
+			localBytes <= _localMemSize;
+	}
+
 private:
 	static EVendor getVendor(const std::string & vendorString)
 	{
