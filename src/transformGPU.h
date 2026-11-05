@@ -217,8 +217,6 @@ public:
 
 #define DEFINE_FORWARDP(u) \
 	void forward##u##p(const int lm) { setTransformArgs(_forward##u, false); forward##u(lm); setTransformArgs(_forward##u);	}
-#define DEFINE_FORWARDP0(u) \
-	void forward##u##p##_0() { setTransformArgs(_forward##u##_0, false); forward##u##_0(); setTransformArgs(_forward##u##_0); }
 #define DEFINE_FORWARDPn(u, v) \
 	void forward##u##p_##v() { setTransformArgs(_forward##u##_##v, false); forward##u##_##v(); setTransformArgs(_forward##u##_##v);	}
 
@@ -583,7 +581,6 @@ private:
 
 #if defined(TUNE)
 	DEFINE_FORWARDP(4);
-	DEFINE_FORWARDP0(4);
 #endif
 	DEFINE_FORWARDPn(64, 0);
 	DEFINE_FORWARDPn(64, 9);
@@ -924,7 +921,6 @@ public:
 				resetProfiles();
 				squareTune(16, i, Z);
 				const cl_ulong t = getProfileTime();
-				displayProfiles(16);
 
 #if defined(ocl_debug)
 				std::ostringstream ss; ss << "[" << i << "]";

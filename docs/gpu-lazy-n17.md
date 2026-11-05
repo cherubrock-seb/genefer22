@@ -90,12 +90,14 @@ Default behavior:
 
 ```sh
 make -C genefer -f makefile_linux_x64 BOINC= -B ../bin/geneferg
+```
 
 Enable the experiment:
 
-Bash
+```sh
 make -C genefer -f makefile_linux_x64 BOINC= -B ../bin/geneferg \
   FLAGS_GPU='-O3 -DGPU -DGENEFER_GPU_LAZY_N17=1'
+```
 
 The experiment remains draft/default-off pending broader workload coverage and
-upstream review. main is not changed by this branch.
+upstream review. `main` is not changed by this branch.
