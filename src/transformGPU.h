@@ -433,6 +433,10 @@ public:
 #if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4 && !defined(CHECK_RADIX4_FUNCTIONS)
 	void prepareRegisterSquares(const std::ostringstream & src, const bool verbose)
 	{
+#if !defined(TUNE)
+		// Odd fixed plans use the other square kernels.
+		if (_ln < 12 || _ln > 22 || (_ln & 1) != 0) return;
+#endif
 		cl_program program = tryBuildAuxProgram("#define GENEFER_GPU_REGISTER_SQUARE_CORE 1\n" + src.str());
 		if (program == nullptr)
 		{
