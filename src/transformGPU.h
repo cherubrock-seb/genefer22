@@ -21,6 +21,12 @@ Please give feedback to the authors if improvement is realized. It is distribute
 
 #define VSIZE	4
 
+#ifndef GENEFER_GPU_REGISTER_SQUARE_CORE
+#define GENEFER_GPU_REGISTER_SQUARE_CORE 0
+#endif
+static_assert(GENEFER_GPU_REGISTER_SQUARE_CORE == 0 || GENEFER_GPU_REGISTER_SQUARE_CORE == 1,
+	"GENEFER_GPU_REGISTER_SQUARE_CORE must be 0 or 1");
+
 // TUNE must be set if CHECK is set
 // #define CHECK_ALL_FUNCTIONS		1
 // #define CHECK_RADIX4_FUNCTIONS	1
@@ -970,6 +976,9 @@ public:
 		src << "#define RNS_SZ\t" << RNS_SIZE << std::endl;
 		src << "#define VSIZE\t" << VSIZE << std::endl;
 		src << "#define LVSIZE\t" << LVSIZE << std::endl;
+#if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4
+		src << "#define GENEFER_GPU_REGISTER_SQUARE_CORE 1\n";
+#endif
 
 		if (is32) src << "#define IS32\t" << 1 << std::endl;
 
