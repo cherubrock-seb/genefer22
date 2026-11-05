@@ -91,7 +91,9 @@ public:
 
 
 // #define ocl_debug		1
+#if !defined(GENEFER_GPU_SHORT_PLAN21) || !GENEFER_GPU_SHORT_PLAN21
 #define ocl_fast_exec		1
+#endif
 
 class oclObject
 {
