@@ -1042,6 +1042,12 @@ INLINE void mul_8x1(const uint2_32 pq, __local uint2_32 * restrict const Z, cons
 // --- v4
 
 #if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4
+// Distinct entry points also identify a matching external kernel source.
+#define square64 square64_register
+#define square256 square256_register
+#define square1024 square1024_register
+#define square4096 square4096_register
+
 // The innermost radix-4 stages and the square own the same four vectors.
 INLINE void square_register_core(const uint2_32 pq, __local uint4_32 * restrict const Z,
 	__global const uint_32 * restrict const w, __global const uint_32 * restrict const wi, const sz_t sj, const sz_t sji)

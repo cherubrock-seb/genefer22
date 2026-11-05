@@ -1054,6 +1054,12 @@ static const char * const src_ocl_kernel = \
 "// --- v4\n" \
 "\n" \
 "#if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4\n" \
+"// Distinct entry points also identify a matching external kernel source.\n" \
+"#define square64 square64_register\n" \
+"#define square256 square256_register\n" \
+"#define square1024 square1024_register\n" \
+"#define square4096 square4096_register\n" \
+"\n" \
 "// The innermost radix-4 stages and the square own the same four vectors.\n" \
 "INLINE void square_register_core(const uint2_32 pq, __local uint4_32 * restrict const Z,\n" \
 "	__global const uint_32 * restrict const w, __global const uint_32 * restrict const wi, const sz_t sj, const sz_t sji)\n" \

@@ -430,6 +430,31 @@ public:
 #endif
 	}
 
+#if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4 && !defined(CHECK_RADIX4_FUNCTIONS)
+	void prepareRegisterSquares(const std::ostringstream & src, const bool verbose)
+	{
+		cl_program program = tryBuildAuxProgram("#define GENEFER_GPU_REGISTER_SQUARE_CORE 1\n" + src.str());
+		if (program == nullptr)
+		{
+			if (verbose) pio::print("Register square kernels unavailable. Using baseline.\n");
+			return;
+		}
+		auto select = [&](cl_kernel & original, const char * name, size_t groupSize)
+		{
+			cl_kernel candidate = tryTransformKernel(program, name, groupSize, _z, _w);
+			if (candidate == nullptr) return;
+			_releaseKernel(original);
+			original = candidate;
+			if (verbose) pio::print(std::string("Register square kernel: ") + name + ".\n");
+		};
+		select(_square64, "square64_register", 64 * BLK64 / (4 * VSIZE));
+		select(_square256, "square256_register", 256 * BLK256 / (4 * VSIZE));
+		select(_square1024, "square1024_register", 1024 * BLK1024 / (4 * VSIZE));
+		select(_square4096, "square4096_register", 4096 * BLK4096 / (4 * VSIZE));
+		clReleaseProgram(program);
+	}
+#endif
+
 	void releaseKernels()
 	{
 #if defined(ocl_debug)
@@ -976,9 +1001,6 @@ public:
 		src << "#define RNS_SZ\t" << RNS_SIZE << std::endl;
 		src << "#define VSIZE\t" << VSIZE << std::endl;
 		src << "#define LVSIZE\t" << LVSIZE << std::endl;
-#if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4
-		src << "#define GENEFER_GPU_REGISTER_SQUARE_CORE 1\n";
-#endif
 
 		if (is32) src << "#define IS32\t" << 1 << std::endl;
 
@@ -1051,6 +1073,9 @@ public:
 		_pEngine->loadProgram(src.str());
 		_pEngine->allocMemory();
 		_pEngine->createKernels(b);
+#if GENEFER_GPU_REGISTER_SQUARE_CORE && VSIZE == 4 && !defined(CHECK_RADIX4_FUNCTIONS)
+		_pEngine->prepareRegisterSquares(src, verbose);
+#endif
 
 		ZP1 * const wr1 = new ZP1[size];
 		ZP2 * const wr2 = new ZP2[size];

@@ -91,7 +91,9 @@ public:
 
 
 // #define ocl_debug		1
+#if !defined(GENEFER_GPU_REGISTER_SQUARE_CORE) || !GENEFER_GPU_REGISTER_SQUARE_CORE
 #define ocl_fast_exec		1
+#endif
 
 class oclObject
 {
@@ -381,6 +383,26 @@ public:
 	size_t getTimerResolution() const { return _timerResolution; }
 	bool isIntel() const { return (_vendor == EVendor::INTEL); }
 
+protected:
+	bool supportsWorkGroup1D(const cl_kernel kernel, const size_t count) const
+	{
+		if (kernel == nullptr || count > _maxWorkGroupSize) return false;
+
+		size_t bytes = 0;
+		if (clGetDeviceInfo(_device, CL_DEVICE_MAX_WORK_ITEM_SIZES, 0, nullptr, &bytes) != CL_SUCCESS ||
+			bytes < sizeof(size_t) || bytes % sizeof(size_t) != 0) return false;
+
+		std::vector<size_t> maxItems(bytes / sizeof(size_t));
+		size_t kernelLimit = 0;
+		cl_ulong localBytes = 0;
+		return clGetDeviceInfo(_device, CL_DEVICE_MAX_WORK_ITEM_SIZES, bytes, maxItems.data(), nullptr) == CL_SUCCESS &&
+			count <= maxItems[0] &&
+			clGetKernelWorkGroupInfo(kernel, _device, CL_KERNEL_WORK_GROUP_SIZE, sizeof(kernelLimit), &kernelLimit, nullptr) == CL_SUCCESS &&
+			count <= kernelLimit &&
+			clGetKernelWorkGroupInfo(kernel, _device, CL_KERNEL_LOCAL_MEM_SIZE, sizeof(localBytes), &localBytes, nullptr) == CL_SUCCESS &&
+			localBytes <= _localMemSize;
+	}
+
 private:
 	static EVendor getVendor(const std::string & vendorString)
 	{
@@ -601,6 +623,35 @@ protected:
 	}
 
 protected:
+	// Compile opt-in kernels separately so a driver rejection leaves the normal program usable.
+	cl_program tryBuildAuxProgram(const std::string & source) const
+	{
+		const char * text = source.c_str();
+		cl_int err;
+		cl_program program = clCreateProgramWithSource(_context, 1, &text, nullptr, &err);
+		if (err != CL_SUCCESS) return nullptr;
+		if (clBuildProgram(program, 1, &_device, nullptr, nullptr, nullptr) == CL_SUCCESS) return program;
+		clReleaseProgram(program);
+		return nullptr;
+	}
+
+	cl_kernel tryTransformKernel(const cl_program program, const char * const name, const size_t groupSize,
+		const cl_mem data, const cl_mem roots)
+	{
+		cl_int err;
+		cl_kernel kernel = clCreateKernel(program, name, &err);
+		if (err != CL_SUCCESS) return nullptr;
+		if (!supportsWorkGroup1D(kernel, groupSize) ||
+			clSetKernelArg(kernel, 0, sizeof(cl_mem), &data) != CL_SUCCESS ||
+			clSetKernelArg(kernel, 1, sizeof(cl_mem), &roots) != CL_SUCCESS)
+		{
+			clReleaseKernel(kernel);
+			return nullptr;
+		}
+		_profileMap[kernel] = profile(name);
+		return kernel;
+	}
+
 	cl_kernel _createKernel(const char * const kernelName)
 	{
 		cl_int err;
