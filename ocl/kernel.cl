@@ -1515,6 +1515,22 @@ void forward256_0(__global VTYPE * restrict const zg, __global const uint_32 * r
 	FORWARD_256();
 }
 
+#if defined(GENEFER_FUSED_PREPARE_WIDE_KERNEL) && VSIZE == 4
+__kernel
+ATTR_256()
+void prepare256_0(__global VTYPE * restrict const zg, __global const uint_32 * restrict const wg,
+    __global const VTYPE * restrict const source, const sz_t src)
+{
+    const int lm = LN_SZ - LVSIZE - 8; const unsigned int s = 256 / 4;
+    __local VTYPE Z[4 * B_256 * CHUNK256];
+    DECLARE_VAR(B_256, CHUNK256);
+    __global const VTYPE * const zi = &source[src + 4 * mid + ki];
+    __global VTYPE * const zo = &z[ko];
+    forward_4i_0(pq, g_f0[lid], B_256 * CHUNK256, &Z[i], B_256 << lm, zi);
+    FORWARD_256();
+}
+#endif
+
 #define BACKWARD_256() \
 	__local VTYPE Z[4 * B_256 * CHUNK256]; \
 	BACKWARD_I(B_256, CHUNK256); \
@@ -1582,6 +1598,22 @@ void forward1024_0(__global VTYPE * restrict const zg, __global const uint_32 * 
 	FORWARD_I_0(B_1024, CHUNK1024);
 	FORWARD_1024();
 }
+
+#if defined(GENEFER_FUSED_PREPARE_WIDE_KERNEL) && VSIZE == 4
+__kernel
+ATTR_1024()
+void prepare1024_0(__global VTYPE * restrict const zg, __global const uint_32 * restrict const wg,
+    __global const VTYPE * restrict const source, const sz_t src)
+{
+    const int lm = LN_SZ - LVSIZE - 10; const unsigned int s = 1024 / 4;
+    __local VTYPE Z[4 * B_1024 * CHUNK1024];
+    DECLARE_VAR(B_1024, CHUNK1024);
+    __global const VTYPE * const zi = &source[src + 4 * mid + ki];
+    __global VTYPE * const zo = &z[ko];
+    forward_4i_0(pq, g_f0[lid], B_1024 * CHUNK1024, &Z[i], B_1024 << lm, zi);
+    FORWARD_1024();
+}
+#endif
 
 #define BACKWARD_1024() \
 	__local VTYPE Z[4 * B_1024 * CHUNK1024]; \
