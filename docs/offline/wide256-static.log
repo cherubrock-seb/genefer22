@@ -1,0 +1,2 @@
+PASS embedded source; 48 enabled syntax configurations; 24 flag-off and 16 non-four-lane fallback token comparisons
+PASS all butterfly partitions, logical lanes, plane and last-tile bounds
