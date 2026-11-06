@@ -1,0 +1,38 @@
+name: Genefer22 GPU PR validation
+
+on:
+  push:
+    branches:
+      - perf/gpu-gfn21-short-plan
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install build and test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ make libgmp-dev ocl-icd-opencl-dev python3 python3-numpy
+
+      - name: Run GFN-21 translated-kernel exactness matrix
+        run: |
+          python3 tests/check_short_plan21.py --rns 2
+          python3 tests/check_short_plan21.py --rns 2 --wide
+          python3 tests/check_short_plan21.py --rns 3
+          python3 tests/check_short_plan21.py --rns 3 --wide
+          python3 tests/check_short_plan21.py --rns 3 --wide --use-wi
+
+      - name: Build default-off GPU host binary
+        run: |
+          make -B -C genefer -f makefile_linux_x64 BOINC= \
+            FLAGS_GPU="-O3 -DGPU -DGENEFER_GPU_SHORT_PLAN21=0" ../bin/geneferg
+
+      - name: Build opt-in GPU host binary
+        run: |
+          make -B -C genefer -f makefile_linux_x64 BOINC= \
+            FLAGS_GPU="-O3 -DGPU -DGENEFER_GPU_SHORT_PLAN21=1" ../bin/geneferg
