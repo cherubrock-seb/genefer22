@@ -1077,6 +1077,32 @@ static const char * const src_ocl_kernel = \
 "	_storel4(4, Z, 1, zl);\n" \
 "}\n" \
 "\n" \
+"#if GENEFER_GPU_REGISTER_PREPARE_TAIL && VSIZE == 4\n" \
+"#define fwd64p fwd64p_register\n" \
+"#define fwd256p fwd256p_register\n" \
+"#define fwd1024p fwd1024p_register\n" \
+"#define fwd4096p fwd4096p_register\n" \
+"\n" \
+"// The final radix-4 exchange and output transform own the same four vectors.\n" \
+"INLINE void prepare_register_tail(const uint2_32 pq, const sz_t mg,\n" \
+"    __global uint4_32 * restrict const z, __local const uint4_32 * restrict const Z,\n" \
+"    __global const uint_32 * restrict const w, const sz_t sj)\n" \
+"{\n" \
+"    barrier(CLK_LOCAL_MEM_FENCE);\n" \
+"    uint4_32 zl[4]; _loadl4(4, zl, Z, 1);\n" \
+"    {\n" \
+"        DECLARE_W12(sj);\n" \
+"        _forward4x4(pq, zl, w1, w2);\n" \
+"    }\n" \
+"    {\n" \
+"        DECLARE_W2_4(sj);\n" \
+"        _fwd4x2v4(pq, &zl[0], &w2[0]);\n" \
+"        _fwd4x2v4(pq, &zl[2], &w2[2]);\n" \
+"    }\n" \
+"    _storeg4(4, z, mg, zl);\n" \
+"}\n" \
+"#endif\n" \
+"\n" \
 "INLINE void fwd4x4_write(const uint2_32 pq, const sz_t mg, __global uint4_32 * restrict const z,\n" \
 "	__local const uint4_32 * restrict const Z, __global const uint_32 * restrict const w, const sz_t sj)\n" \
 "{\n" \
@@ -1988,8 +2014,12 @@ static const char * const src_ocl_kernel = \
 "	DECLARE_VAR_64();\n" \
 "\n" \
 "	forward_4i(pq, L64S / 4, Zi16, L64S / 4, zk, w, sj / (L64S / 4));\n" \
+"#if GENEFER_GPU_REGISTER_PREPARE_TAIL && VSIZE == 4\n" \
+"	prepare_register_tail(pq, L64S / 4, zk, Z4, w, sj);\n" \
+"#else\n" \
 "	forward_4(pq, L64S / 16, Zi4, w, sj / (L64S / 16));\n" \
 "	fwd4_write(pq, L64S / 4, zk, Z4, w, sj);\n" \
+"#endif\n" \
 "}\n" \
 "\n" \
 "__kernel\n" \
@@ -2020,8 +2050,12 @@ static const char * const src_ocl_kernel = \
 "\n" \
 "	forward_4i(pq, L256S / 4, Zi64, L256S / 4, zk, w, sj / (L256S / 4));\n" \
 "	forward_4(pq, L256S / 16, Zi16, w, sj / (L256S / 16));\n" \
+"#if GENEFER_GPU_REGISTER_PREPARE_TAIL && VSIZE == 4\n" \
+"	prepare_register_tail(pq, L256S / 4, zk, Z4, w, sj);\n" \
+"#else\n" \
 "	forward_4(pq, L256S / 64, Zi4, w, sj / (L256S / 64));\n" \
 "	fwd4_write(pq, L256S / 4, zk, Z4, w, sj);\n" \
+"#endif\n" \
 "}\n" \
 "\n" \
 "__kernel\n" \
@@ -2054,8 +2088,12 @@ static const char * const src_ocl_kernel = \
 "	forward_4i(pq, L1024S / 4, Zi256, L1024S / 4, zk, w, sj / (L1024S / 4));\n" \
 "	forward_4(pq, L1024S / 16, Zi64, w, sj / (L1024S / 16));\n" \
 "	forward_4(pq, L1024S / 64, Zi16, w, sj / (L1024S / 64));\n" \
+"#if GENEFER_GPU_REGISTER_PREPARE_TAIL && VSIZE == 4\n" \
+"	prepare_register_tail(pq, L1024S / 4, zk, Z4, w, sj);\n" \
+"#else\n" \
 "	forward_4(pq, L1024S / 256, Zi4, w, sj / (L1024S / 256));\n" \
 "	fwd4_write(pq, L1024S / 4, zk, Z4, w, sj);\n" \
+"#endif\n" \
 "}\n" \
 "\n" \
 "__kernel\n" \
@@ -2090,8 +2128,12 @@ static const char * const src_ocl_kernel = \
 "	forward_4(pq, L4096S / 16, Zi256, w, sj / (L4096S / 16));\n" \
 "	forward_4(pq, L4096S / 64, Zi64, w, sj / (L4096S / 64));\n" \
 "	forward_4(pq, L4096S / 256, Zi16, w, sj / (L4096S / 256));\n" \
+"#if GENEFER_GPU_REGISTER_PREPARE_TAIL && VSIZE == 4\n" \
+"	prepare_register_tail(pq, L4096S / 4, zk, Z4, w, sj);\n" \
+"#else\n" \
 "	forward_4(pq, L4096S / 1024, Zi4, w, sj / (L4096S / 1024));\n" \
 "	fwd4_write(pq, L4096S / 4, zk, Z4, w, sj);\n" \
+"#endif\n" \
 "}\n" \
 "\n" \
 "// -----------------\n" \

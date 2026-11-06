@@ -1065,6 +1065,32 @@ INLINE void square_8x2(const uint2_32 pq, __local uint4_32 * restrict const Z,
 	_storel4(4, Z, 1, zl);
 }
 
+#if GENEFER_GPU_REGISTER_PREPARE_TAIL && VSIZE == 4
+#define fwd64p fwd64p_register
+#define fwd256p fwd256p_register
+#define fwd1024p fwd1024p_register
+#define fwd4096p fwd4096p_register
+
+// The final radix-4 exchange and output transform own the same four vectors.
+INLINE void prepare_register_tail(const uint2_32 pq, const sz_t mg,
+    __global uint4_32 * restrict const z, __local const uint4_32 * restrict const Z,
+    __global const uint_32 * restrict const w, const sz_t sj)
+{
+    barrier(CLK_LOCAL_MEM_FENCE);
+    uint4_32 zl[4]; _loadl4(4, zl, Z, 1);
+    {
+        DECLARE_W12(sj);
+        _forward4x4(pq, zl, w1, w2);
+    }
+    {
+        DECLARE_W2_4(sj);
+        _fwd4x2v4(pq, &zl[0], &w2[0]);
+        _fwd4x2v4(pq, &zl[2], &w2[2]);
+    }
+    _storeg4(4, z, mg, zl);
+}
+#endif
+
 INLINE void fwd4x4_write(const uint2_32 pq, const sz_t mg, __global uint4_32 * restrict const z,
 	__local const uint4_32 * restrict const Z, __global const uint_32 * restrict const w, const sz_t sj)
 {
@@ -1976,8 +2002,12 @@ void fwd64p(__global VTYPE * restrict const zg, __global const uint_32 * restric
 	DECLARE_VAR_64();
 
 	forward_4i(pq, L64S / 4, Zi16, L64S / 4, zk, w, sj / (L64S / 4));
+#if GENEFER_GPU_REGISTER_PREPARE_TAIL && VSIZE == 4
+	prepare_register_tail(pq, L64S / 4, zk, Z4, w, sj);
+#else
 	forward_4(pq, L64S / 16, Zi4, w, sj / (L64S / 16));
 	fwd4_write(pq, L64S / 4, zk, Z4, w, sj);
+#endif
 }
 
 __kernel
@@ -2008,8 +2038,12 @@ void fwd256p(__global VTYPE * restrict const zg, __global const uint_32 * restri
 
 	forward_4i(pq, L256S / 4, Zi64, L256S / 4, zk, w, sj / (L256S / 4));
 	forward_4(pq, L256S / 16, Zi16, w, sj / (L256S / 16));
+#if GENEFER_GPU_REGISTER_PREPARE_TAIL && VSIZE == 4
+	prepare_register_tail(pq, L256S / 4, zk, Z4, w, sj);
+#else
 	forward_4(pq, L256S / 64, Zi4, w, sj / (L256S / 64));
 	fwd4_write(pq, L256S / 4, zk, Z4, w, sj);
+#endif
 }
 
 __kernel
@@ -2042,8 +2076,12 @@ void fwd1024p(__global VTYPE * restrict const zg, __global const uint_32 * restr
 	forward_4i(pq, L1024S / 4, Zi256, L1024S / 4, zk, w, sj / (L1024S / 4));
 	forward_4(pq, L1024S / 16, Zi64, w, sj / (L1024S / 16));
 	forward_4(pq, L1024S / 64, Zi16, w, sj / (L1024S / 64));
+#if GENEFER_GPU_REGISTER_PREPARE_TAIL && VSIZE == 4
+	prepare_register_tail(pq, L1024S / 4, zk, Z4, w, sj);
+#else
 	forward_4(pq, L1024S / 256, Zi4, w, sj / (L1024S / 256));
 	fwd4_write(pq, L1024S / 4, zk, Z4, w, sj);
+#endif
 }
 
 __kernel
@@ -2078,8 +2116,12 @@ void fwd4096p(__global VTYPE * restrict const zg, __global const uint_32 * restr
 	forward_4(pq, L4096S / 16, Zi256, w, sj / (L4096S / 16));
 	forward_4(pq, L4096S / 64, Zi64, w, sj / (L4096S / 64));
 	forward_4(pq, L4096S / 256, Zi16, w, sj / (L4096S / 256));
+#if GENEFER_GPU_REGISTER_PREPARE_TAIL && VSIZE == 4
+	prepare_register_tail(pq, L4096S / 4, zk, Z4, w, sj);
+#else
 	forward_4(pq, L4096S / 1024, Zi4, w, sj / (L4096S / 1024));
 	fwd4_write(pq, L4096S / 4, zk, Z4, w, sj);
+#endif
 }
 
 // -----------------
