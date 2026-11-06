@@ -382,6 +382,7 @@ public:
 	size_t getLocalMemSize() const { return _localMemSize; }
 	size_t getTimerResolution() const { return _timerResolution; }
 	bool isIntel() const { return (_vendor == EVendor::INTEL); }
+	bool isNVIDIA() const { return (_vendor == EVendor::NVIDIA); }
 
 protected:
 	bool supportsWorkGroup1D(const cl_kernel kernel, const size_t count) const

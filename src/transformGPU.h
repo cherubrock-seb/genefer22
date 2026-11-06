@@ -430,7 +430,7 @@ public:
 #if GENEFER_GPU_SHORT_PLAN21 && VSIZE == 4 && !defined(TUNE)
 		// Select one layout for square, multiplication and multiplicand preparation.
 		const size_t outerGroup = 1024 / 4 * CHUNK1024, tailGroup = 2048 / (4 * VSIZE) * BLK2048;
-		_useShortPlan21 = _ln == 21 && supportsWorkGroup1D(_forward1024_0, outerGroup) &&
+		_useShortPlan21 = _ln == 21 && isNVIDIA() && supportsWorkGroup1D(_forward1024_0, outerGroup) &&
 			supportsWorkGroup1D(_backward1024_0, outerGroup) && supportsWorkGroup1D(_square2048, tailGroup) &&
 			supportsWorkGroup1D(_fwd2048p, tailGroup) && supportsWorkGroup1D(_mul2048, tailGroup);
 #endif
