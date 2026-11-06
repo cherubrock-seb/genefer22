@@ -1425,6 +1425,22 @@ static const char * const src_ocl_kernel = \
 "	FORWARD_64();\n" \
 "}\n" \
 "\n" \
+"#if defined(GENEFER_FUSED_PREPARE64_KERNEL) && VSIZE == 4\n" \
+"__kernel\n" \
+"ATTR_64()\n" \
+"void prepare64_0(__global VTYPE * restrict const zg, __global const uint_32 * restrict const wg,\n" \
+"    __global const VTYPE * restrict const source, const sz_t src)\n" \
+"{\n" \
+"    const int lm = LN_SZ - LVSIZE - 6; const unsigned int s = 64 / 4;\n" \
+"    __local VTYPE Z[4 * B_64 * CHUNK64];\n" \
+"    DECLARE_VAR(B_64, CHUNK64);\n" \
+"    __global const VTYPE * const zi = &source[src + 4 * mid + ki];\n" \
+"    __global VTYPE * const zo = &z[ko];\n" \
+"    forward_4i_0(pq, g_f0[lid], B_64 * CHUNK64, &Z[i], B_64 << lm, zi);\n" \
+"    FORWARD_64();\n" \
+"}\n" \
+"#endif\n" \
+"\n" \
 "__kernel\n" \
 "ATTR_64()\n" \
 "void forward64_9(__global VTYPE * restrict const zg, __global const uint_32 * restrict const wg)\n" \
