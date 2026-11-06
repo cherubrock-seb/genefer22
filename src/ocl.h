@@ -381,8 +381,8 @@ public:
 	size_t getMaxWorkGroupSize() const { return _maxWorkGroupSize; }
 	size_t getLocalMemSize() const { return _localMemSize; }
 	size_t getTimerResolution() const { return _timerResolution; }
-	bool isIntel() const { return (_vendor == EVendor::INTEL); }
 	bool isNVIDIA() const { return (_vendor == EVendor::NVIDIA); }
+	bool isIntel() const { return (_vendor == EVendor::INTEL); }
 
 protected:
 	bool supportsWorkGroup1D(const cl_kernel kernel, const size_t count) const
