@@ -1527,6 +1527,22 @@ static const char * const src_ocl_kernel = \
 "	FORWARD_256();\n" \
 "}\n" \
 "\n" \
+"#if defined(GENEFER_FUSED_PREPARE_WIDE_KERNEL) && VSIZE == 4\n" \
+"__kernel\n" \
+"ATTR_256()\n" \
+"void prepare256_0(__global VTYPE * restrict const zg, __global const uint_32 * restrict const wg,\n" \
+"    __global const VTYPE * restrict const source, const sz_t src)\n" \
+"{\n" \
+"    const int lm = LN_SZ - LVSIZE - 8; const unsigned int s = 256 / 4;\n" \
+"    __local VTYPE Z[4 * B_256 * CHUNK256];\n" \
+"    DECLARE_VAR(B_256, CHUNK256);\n" \
+"    __global const VTYPE * const zi = &source[src + 4 * mid + ki];\n" \
+"    __global VTYPE * const zo = &z[ko];\n" \
+"    forward_4i_0(pq, g_f0[lid], B_256 * CHUNK256, &Z[i], B_256 << lm, zi);\n" \
+"    FORWARD_256();\n" \
+"}\n" \
+"#endif\n" \
+"\n" \
 "#define BACKWARD_256() \\\n" \
 "	__local VTYPE Z[4 * B_256 * CHUNK256]; \\\n" \
 "	BACKWARD_I(B_256, CHUNK256); \\\n" \
@@ -1594,6 +1610,22 @@ static const char * const src_ocl_kernel = \
 "	FORWARD_I_0(B_1024, CHUNK1024);\n" \
 "	FORWARD_1024();\n" \
 "}\n" \
+"\n" \
+"#if defined(GENEFER_FUSED_PREPARE_WIDE_KERNEL) && VSIZE == 4\n" \
+"__kernel\n" \
+"ATTR_1024()\n" \
+"void prepare1024_0(__global VTYPE * restrict const zg, __global const uint_32 * restrict const wg,\n" \
+"    __global const VTYPE * restrict const source, const sz_t src)\n" \
+"{\n" \
+"    const int lm = LN_SZ - LVSIZE - 10; const unsigned int s = 1024 / 4;\n" \
+"    __local VTYPE Z[4 * B_1024 * CHUNK1024];\n" \
+"    DECLARE_VAR(B_1024, CHUNK1024);\n" \
+"    __global const VTYPE * const zi = &source[src + 4 * mid + ki];\n" \
+"    __global VTYPE * const zo = &z[ko];\n" \
+"    forward_4i_0(pq, g_f0[lid], B_1024 * CHUNK1024, &Z[i], B_1024 << lm, zi);\n" \
+"    FORWARD_1024();\n" \
+"}\n" \
+"#endif\n" \
 "\n" \
 "#define BACKWARD_1024() \\\n" \
 "	__local VTYPE Z[4 * B_1024 * CHUNK1024]; \\\n" \

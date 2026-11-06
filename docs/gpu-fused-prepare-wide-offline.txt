@@ -1,0 +1,38 @@
+CPU-only offline check output, 2026-11-06
+Base: ddc72834fff77b288dcfe19920707f006a3c492b
+
+python3 tests/check_prepare_wide_static.py
+PASS n=18: unique in-plane reads/writes and 32-bit offset bound
+PASS n=19: unique in-plane reads/writes and 32-bit offset bound
+PASS n=20: unique in-plane reads/writes and 32-bit offset bound
+PASS n=22: unique in-plane reads/writes and 32-bit offset bound
+PASS embedded source, 32 enabled syntax configurations and 16 flag-off token comparisons
+
+python3 tests/check_fused_prepare_wide.py
+PASS n=18 rns=2 wide=False inverse_table=False registers=0,1,2
+PASS n=18 rns=2 wide=False inverse_table=True registers=0,1,2
+PASS n=18 rns=2 wide=True inverse_table=False registers=0,1,2
+PASS n=18 rns=2 wide=True inverse_table=True registers=0,1,2
+PASS n=18 rns=3 wide=False inverse_table=False registers=0,1,2
+PASS n=18 rns=3 wide=False inverse_table=True registers=0,1,2
+PASS n=18 rns=3 wide=True inverse_table=False registers=0,1,2
+PASS n=18 rns=3 wide=True inverse_table=True registers=0,1,2
+PASS n=22 rns=2 wide=False inverse_table=False registers=0,1,2
+PASS n=22 rns=2 wide=False inverse_table=True registers=0,1,2
+PASS n=22 rns=2 wide=True inverse_table=False registers=0,1,2
+PASS n=22 rns=2 wide=True inverse_table=True registers=0,1,2
+PASS n=22 rns=3 wide=False inverse_table=False registers=0,1,2
+PASS n=22 rns=3 wide=False inverse_table=True registers=0,1,2
+PASS n=22 rns=3 wide=True inverse_table=False registers=0,1,2
+PASS n=22 rns=3 wide=True inverse_table=True registers=0,1,2
+PASS n=19 rns=3 wide=True inverse_table=True registers=0,1,2
+PASS n=20 rns=3 wide=True inverse_table=True registers=0,1,2
+
+python3 tests/check_prepare_wide_dispatch.py
+PASS flag=0: dispatch, register binding, fallback and checked errors
+PASS flag=1: dispatch, register binding, fallback and checked errors
+
+GPU_RUNTIME_TEST=NOT_RUN
+GPU_CORRECTNESS=UNVALIDATED
+GPU_PERFORMANCE=UNMEASURED
+PRODUCTION_READINESS=NOT_ESTABLISHED
