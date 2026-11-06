@@ -1,0 +1,87 @@
+CPU-only offline outputs, 6 November 2026
+Base: ddc72834fff77b288dcfe19920707f006a3c492b
+
+python3 tests/check_register_prepare_static.py
+PASS embedded source; 48 enabled syntax configurations; 24 flag-off and 16 non-four-lane fallback token comparisons
+PASS SPIR64 -O2 static barriers [2, 3, 4, 5] -> [1, 2, 3, 4]
+
+python3 tests/run_register_prepare_matrix.py
+n=16 rns=2 wide=False use_wi=False
+fwd64p: PASS (131072 transformed words)
+fwd256p: PASS (131072 transformed words)
+fwd1024p: PASS (131072 transformed words)
+fwd4096p: PASS (131072 transformed words)
+n=16 rns=2 wide=False use_wi=True
+fwd64p: PASS (131072 transformed words)
+fwd256p: PASS (131072 transformed words)
+fwd1024p: PASS (131072 transformed words)
+fwd4096p: PASS (131072 transformed words)
+n=16 rns=2 wide=True use_wi=False
+fwd64p: PASS (131072 transformed words)
+fwd256p: PASS (131072 transformed words)
+fwd1024p: PASS (131072 transformed words)
+fwd4096p: PASS (131072 transformed words)
+n=16 rns=2 wide=True use_wi=True
+fwd64p: PASS (131072 transformed words)
+fwd256p: PASS (131072 transformed words)
+fwd1024p: PASS (131072 transformed words)
+fwd4096p: PASS (131072 transformed words)
+n=16 rns=3 wide=False use_wi=False
+fwd64p: PASS (196608 transformed words)
+fwd256p: PASS (196608 transformed words)
+fwd1024p: PASS (196608 transformed words)
+fwd4096p: PASS (196608 transformed words)
+n=16 rns=3 wide=False use_wi=True
+fwd64p: PASS (196608 transformed words)
+fwd256p: PASS (196608 transformed words)
+fwd1024p: PASS (196608 transformed words)
+fwd4096p: PASS (196608 transformed words)
+n=16 rns=3 wide=True use_wi=False
+fwd64p: PASS (196608 transformed words)
+fwd256p: PASS (196608 transformed words)
+fwd1024p: PASS (196608 transformed words)
+fwd4096p: PASS (196608 transformed words)
+n=16 rns=3 wide=True use_wi=True
+fwd64p: PASS (196608 transformed words)
+fwd256p: PASS (196608 transformed words)
+fwd1024p: PASS (196608 transformed words)
+fwd4096p: PASS (196608 transformed words)
+n=12 rns=3 wide=True use_wi=False
+fwd64p: PASS (12288 transformed words)
+fwd256p: PASS (12288 transformed words)
+fwd1024p: PASS (12288 transformed words)
+fwd4096p: PASS (12288 transformed words)
+n=14 rns=3 wide=True use_wi=False
+fwd64p: PASS (49152 transformed words)
+fwd256p: PASS (49152 transformed words)
+fwd1024p: PASS (49152 transformed words)
+fwd4096p: PASS (49152 transformed words)
+n=18 rns=3 wide=True use_wi=False
+fwd64p: PASS (9216 transformed words)
+fwd256p: PASS (9216 transformed words)
+fwd1024p: PASS (9216 transformed words)
+fwd4096p: PASS (36864 transformed words)
+n=20 rns=3 wide=True use_wi=False
+fwd64p: PASS (9216 transformed words)
+fwd256p: PASS (9216 transformed words)
+fwd1024p: PASS (9216 transformed words)
+fwd4096p: PASS (36864 transformed words)
+n=22 rns=3 wide=True use_wi=False
+fwd64p: PASS (9216 transformed words)
+fwd256p: PASS (9216 transformed words)
+fwd1024p: PASS (9216 transformed words)
+fwd4096p: PASS (36864 transformed words)
+
+python3 tests/check_register_prepare_dispatch.py
+PASS flag=0: expected routing and applicable fallback/error checks at all fixed exponents
+PASS flag=1: expected routing and applicable fallback/error checks at all fixed exponents
+
+TUNE flag 0/1 with baseline DEFINE_FORWARDP0 alias; invalid flag 2 rejected
+PASS TUNE syntax flag=0 with baseline macro alias
+PASS TUNE syntax flag=1 with baseline macro alias
+PASS invalid flag rejected
+
+GPU_RUNTIME_TEST=NOT_RUN
+GPU_CORRECTNESS=UNVALIDATED
+GPU_PERFORMANCE=UNMEASURED
+PRODUCTION_READINESS=NOT_ESTABLISHED
