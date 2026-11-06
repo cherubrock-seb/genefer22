@@ -21,6 +21,11 @@ Please give feedback to the authors if improvement is realized. It is distribute
 
 #define VSIZE	4
 
+#ifndef GENEFER_GPU_FUSED_PREPARE64
+#define GENEFER_GPU_FUSED_PREPARE64 0
+#endif
+static_assert(GENEFER_GPU_FUSED_PREPARE64 == 0 || GENEFER_GPU_FUSED_PREPARE64 == 1, "GENEFER_GPU_FUSED_PREPARE64 must be 0 or 1");
+
 // TUNE must be set if CHECK is set
 // #define CHECK_ALL_FUNCTIONS		1
 // #define CHECK_RADIX4_FUNCTIONS	1
@@ -242,6 +247,9 @@ private:
 	cl_kernel _mul512 = nullptr, _mul1024 = nullptr, _mul2048 = nullptr, _mul4096 = nullptr;
 	cl_kernel _normalize1 = nullptr, _normalize2 = nullptr, _mulscalar = nullptr;
 	cl_kernel _set = nullptr, _copy = nullptr, _copyp = nullptr;
+#if GENEFER_GPU_FUSED_PREPARE64 && VSIZE == 4 && !defined(TUNE)
+	cl_kernel _prepare64 = nullptr;
+#endif
 #if defined(TUNE)
 	splitter * _pSplit = nullptr;
 	size_t _splitIndex = 0;
@@ -424,6 +432,20 @@ public:
 #endif
 	}
 
+#if GENEFER_GPU_FUSED_PREPARE64 && VSIZE == 4 && !defined(TUNE)
+    void prepareCopyFusion(const std::ostringstream & src)
+    {
+        // Bound the first experiment to the fixed GFN-12 layout.
+        if (_ln != 12) return;
+        cl_program program = tryBuildAuxProgram("#define GENEFER_FUSED_PREPARE64_KERNEL 1\n" + src.str());
+        if (program == nullptr) return;
+        _prepare64 = tryTransformKernel(program, "prepare64_0", 64 / 4 * CHUNK64, _zp, _w);
+        clReleaseProgram(program);
+        if (_prepare64 != nullptr && clSetKernelArg(_prepare64, 2, sizeof(cl_mem), &_z) != CL_SUCCESS)
+            _releaseKernel(_prepare64);
+    }
+#endif
+
 	void releaseKernels()
 	{
 #if defined(ocl_debug)
@@ -454,6 +476,9 @@ public:
 
 		_releaseKernel(_normalize1); _releaseKernel(_normalize2); _releaseKernel(_mulscalar);
 
+#if GENEFER_GPU_FUSED_PREPARE64 && VSIZE == 4 && !defined(TUNE)
+		_releaseKernel(_prepare64);
+#endif
 		_releaseKernel(_set); _releaseKernel(_copy); _releaseKernel(_copyp);
 	}
 
@@ -716,6 +741,16 @@ public:
 
 	void initMultiplicand(const size_t src)
 	{
+#if GENEFER_GPU_FUSED_PREPARE64 && VSIZE == 4 && !defined(TUNE)
+        if (_prepare64 != nullptr && src < _num_regs)
+        {
+            const uint32 offset = static_cast<uint32>(src * RNS_SIZE * _n / VSIZE);
+            _setKernelArg(_prepare64, 3, sizeof(offset), &offset);
+            ek(_prepare64, 64 / 4 * CHUNK64, 4 * VSIZE);
+            fwd64p();
+            return;
+        }
+#endif
 		const uint32 isrc = static_cast<uint32>(src * RNS_SIZE * _n / 4);
 		_setKernelArg(_copyp, 2, sizeof(uint32), &isrc);
 		_executeKernel(_copyp, RNS_SIZE * _n / 4);
@@ -1042,6 +1077,9 @@ public:
 		_pEngine->loadProgram(src.str());
 		_pEngine->allocMemory();
 		_pEngine->createKernels(b);
+#if GENEFER_GPU_FUSED_PREPARE64 && VSIZE == 4 && !defined(TUNE)
+		_pEngine->prepareCopyFusion(src);
+#endif
 
 		ZP1 * const wr1 = new ZP1[size];
 		ZP2 * const wr2 = new ZP2[size];

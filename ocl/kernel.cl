@@ -1413,6 +1413,22 @@ void forward64_0(__global VTYPE * restrict const zg, __global const uint_32 * re
 	FORWARD_64();
 }
 
+#if defined(GENEFER_FUSED_PREPARE64_KERNEL) && VSIZE == 4
+__kernel
+ATTR_64()
+void prepare64_0(__global VTYPE * restrict const zg, __global const uint_32 * restrict const wg,
+    __global const VTYPE * restrict const source, const sz_t src)
+{
+    const int lm = LN_SZ - LVSIZE - 6; const unsigned int s = 64 / 4;
+    __local VTYPE Z[4 * B_64 * CHUNK64];
+    DECLARE_VAR(B_64, CHUNK64);
+    __global const VTYPE * const zi = &source[src + 4 * mid + ki];
+    __global VTYPE * const zo = &z[ko];
+    forward_4i_0(pq, g_f0[lid], B_64 * CHUNK64, &Z[i], B_64 << lm, zi);
+    FORWARD_64();
+}
+#endif
+
 __kernel
 ATTR_64()
 void forward64_9(__global VTYPE * restrict const zg, __global const uint_32 * restrict const wg)
