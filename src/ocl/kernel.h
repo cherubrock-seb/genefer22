@@ -1916,6 +1916,74 @@ static const char * const src_ocl_kernel = \
 "	backward_4o(pq, L2048S / 4, zk, L2048S / 4, Zi512, wi, sji / (L2048S / 4));\n" \
 "}\n" \
 "\n" \
+"#if defined(GENEFER_WIDE_SQUARE23_WG256_KERNEL) && VSIZE == 4 && LN_SZ == 23\n" \
+"// One group owns 8192 scalar residues in a single RNS plane.\n" \
+"INLINE sz_t square8192_wg256_slot(const sz_t lane, const sz_t stride)\n" \
+"{\n" \
+"	return (lane / stride) * (4 * stride) + lane % stride;\n" \
+"}\n" \
+"\n" \
+"__kernel __attribute__((reqd_work_group_size(256, 1, 1)))\n" \
+"void square8192_wg256(__global VTYPE * restrict const zg, __global const uint_32 * restrict const wg)\n" \
+"{\n" \
+"    const sz_t gid = (sz_t)get_global_id(0), physicalPlaneItems = N_SZ / 32;\n" \
+"    const sz_t plane = gid / physicalPlaneItems, physicalId = gid % physicalPlaneItems;\n" \
+"    const sz_t tileIndex = physicalId / 256, physicalLane = physicalId % 256;\n" \
+"    const sz_t planeItems = N_SZ / 16, lanes = 512, vectors = 2048;\n" \
+"    const uint2_32 pq = g_pq[plane];\n" \
+"    __global VTYPE * const z = &zg[plane * (N_SZ / VSIZE)];\n" \
+"    __global const uint_32 * const w = &wg[plane * W_SHFT];\n" \
+"    __local VTYPE tile[2048];\n" \
+"    for (sz_t part = 0; part < 2; ++part)\n" \
+"    {\n" \
+"        const sz_t lane = physicalLane + part * 256;\n" \
+"        const sz_t id = tileIndex * lanes + lane, sj = planeItems + id;\n" \
+"        DECLARE_IVAR(planeItems, id);\n" \
+"        __global VTYPE * const block = &z[tileIndex * vectors + lane];\n" \
+"        forward_4i(pq, lanes, &tile[lane], lanes, block, w, sj / lanes);\n" \
+"    }\n" \
+"    for (sz_t stride = lanes / 4; stride >= 2; stride /= 4)\n" \
+"    {\n" \
+"    for (sz_t part = 0; part < 2; ++part)\n" \
+"    {\n" \
+"        const sz_t lane = physicalLane + part * 256;\n" \
+"        const sz_t id = tileIndex * lanes + lane, sj = planeItems + id;\n" \
+"        DECLARE_IVAR(planeItems, id);\n" \
+"        __global VTYPE * const block = &z[tileIndex * vectors + lane];\n" \
+"        forward_4(pq, stride, &tile[square8192_wg256_slot(lane, stride)], w, sj / stride);\n" \
+"    }\n" \
+"    }\n" \
+"    for (sz_t part = 0; part < 2; ++part)\n" \
+"    {\n" \
+"        const sz_t lane = physicalLane + part * 256;\n" \
+"        const sz_t id = tileIndex * lanes + lane, sj = planeItems + id;\n" \
+"        DECLARE_IVAR(planeItems, id);\n" \
+"        __global VTYPE * const block = &z[tileIndex * vectors + lane];\n" \
+"        square_8(pq, &tile[4 * lane], w, wi, sj, sji);\n" \
+"    }\n" \
+"    for (sz_t stride = 2; stride < lanes; stride *= 4)\n" \
+"    {\n" \
+"    for (sz_t part = 0; part < 2; ++part)\n" \
+"    {\n" \
+"        const sz_t lane = physicalLane + part * 256;\n" \
+"        const sz_t id = tileIndex * lanes + lane, sj = planeItems + id;\n" \
+"        DECLARE_IVAR(planeItems, id);\n" \
+"        __global VTYPE * const block = &z[tileIndex * vectors + lane];\n" \
+"        backward_4(pq, stride, &tile[square8192_wg256_slot(lane, stride)], wi, sji / stride);\n" \
+"    }\n" \
+"    }\n" \
+"    for (sz_t part = 0; part < 2; ++part)\n" \
+"    {\n" \
+"        const sz_t lane = physicalLane + part * 256;\n" \
+"        const sz_t id = tileIndex * lanes + lane, sj = planeItems + id;\n" \
+"        DECLARE_IVAR(planeItems, id);\n" \
+"        __global VTYPE * const block = &z[tileIndex * vectors + lane];\n" \
+"        backward_4o(pq, lanes, block, lanes, &tile[lane], wi, sji / lanes);\n" \
+"    }\n" \
+"}\n" \
+"\n" \
+"#endif\n" \
+"\n" \
 "#define L4096S	(4096 / VSIZE)\n" \
 "\n" \
 "#define DECLARE_VAR_4096() \\\n" \

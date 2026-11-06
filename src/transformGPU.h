@@ -21,6 +21,11 @@ Please give feedback to the authors if improvement is realized. It is distribute
 
 #define VSIZE	4
 
+#ifndef GENEFER_GPU_WIDE_SQUARE23_WG256
+#define GENEFER_GPU_WIDE_SQUARE23_WG256 0
+#endif
+static_assert(GENEFER_GPU_WIDE_SQUARE23_WG256 == 0 || GENEFER_GPU_WIDE_SQUARE23_WG256 == 1, "GENEFER_GPU_WIDE_SQUARE23_WG256 must be 0 or 1");
+
 // TUNE must be set if CHECK is set
 // #define CHECK_ALL_FUNCTIONS		1
 // #define CHECK_RADIX4_FUNCTIONS	1
@@ -242,6 +247,9 @@ private:
 	cl_kernel _mul512 = nullptr, _mul1024 = nullptr, _mul2048 = nullptr, _mul4096 = nullptr;
 	cl_kernel _normalize1 = nullptr, _normalize2 = nullptr, _mulscalar = nullptr;
 	cl_kernel _set = nullptr, _copy = nullptr, _copyp = nullptr;
+#if GENEFER_GPU_WIDE_SQUARE23_WG256 && VSIZE == 4 && !defined(TUNE)
+	cl_kernel _square8192_wg256 = nullptr;
+#endif
 #if defined(TUNE)
 	splitter * _pSplit = nullptr;
 	size_t _splitIndex = 0;
@@ -424,6 +432,21 @@ public:
 #endif
 	}
 
+#if GENEFER_GPU_WIDE_SQUARE23_WG256 && VSIZE == 4 && !defined(TUNE)
+	bool prepareWideSquare23(const std::ostringstream & src)
+	{
+		const size_t outerGroup = 1024 / 4 * CHUNK1024, tailGroup = 256;
+		if (_ln != 23 || getMaxWorkGroupSize() < tailGroup || getLocalMemSize() < 8192 * sizeof(uint32) ||
+			!supportsWorkGroup1D(_forward1024_0, outerGroup) || !supportsWorkGroup1D(_backward1024_0, outerGroup)) return false;
+
+		cl_program program = tryBuildAuxProgram("#define GENEFER_WIDE_SQUARE23_WG256_KERNEL 1\n" + src.str());
+		if (program == nullptr) return false;
+		_square8192_wg256 = tryTransformKernel(program, "square8192_wg256", tailGroup, _z, _w);
+		clReleaseProgram(program); // A successfully created kernel retains its program.
+		return _square8192_wg256 != nullptr;
+	}
+#endif
+
 	void releaseKernels()
 	{
 #if defined(ocl_debug)
@@ -447,6 +470,9 @@ public:
 #endif
 		_releaseKernel(_square32); _releaseKernel(_square64); _releaseKernel(_square128); _releaseKernel(_square256);
 		_releaseKernel(_square512); _releaseKernel(_square1024); _releaseKernel(_square2048); _releaseKernel(_square4096);
+#if GENEFER_GPU_WIDE_SQUARE23_WG256 && VSIZE == 4 && !defined(TUNE)
+		_releaseKernel(_square8192_wg256);
+#endif
 		_releaseKernel(_fwd32p); _releaseKernel(_fwd64p); _releaseKernel(_fwd128p); _releaseKernel(_fwd256p);
 		_releaseKernel(_fwd512p); _releaseKernel(_fwd1024p); _releaseKernel(_fwd2048p); _releaseKernel(_fwd4096p);
 		_releaseKernel(_mul32); _releaseKernel(_mul64); _releaseKernel(_mul128); _releaseKernel(_mul256);
@@ -675,6 +701,15 @@ public:
 #endif
 		_mul(splitIndex, true);
 #else
+#if GENEFER_GPU_WIDE_SQUARE23_WG256 && VSIZE == 4
+		if (_square8192_wg256 != nullptr)
+		{
+			forward1024_0();
+			ek(_square8192_wg256, 256, 8 * VSIZE);
+			backward1024_0();
+			return;
+		}
+#endif
 		const int ln = _ln;
 		if (ln == 11) { forward64_0(); square32(); backward64_0(); }
 		else if (ln == 12) { forward64_0(); square64(); backward64_0(); }
@@ -1042,6 +1077,13 @@ public:
 		_pEngine->loadProgram(src.str());
 		_pEngine->allocMemory();
 		_pEngine->createKernels(b);
+#if GENEFER_GPU_WIDE_SQUARE23_WG256 && VSIZE == 4 && !defined(TUNE)
+		if (n == 23)
+		{
+			const bool wide = _pEngine->prepareWideSquare23(src);
+			if (verbose) pio::print(wide ? "Experimental GFN-23 square: 1024 x 8192, 256 work-items.\n" : "GFN-23 square: baseline 64 x 64 x 2048.\n");
+		}
+#endif
 
 		ZP1 * const wr1 = new ZP1[size];
 		ZP2 * const wr2 = new ZP2[size];

@@ -1,0 +1,21 @@
+In file included from /workspace/scratch/f04b383072c7/wide256/src/gint.h:14,
+                 from /workspace/scratch/f04b383072c7/wide256/src/transform.h:18,
+                 from /workspace/scratch/f04b383072c7/wide256/tests/mock_opencl/drive.cpp:5:
+/workspace/scratch/f04b383072c7/wide256/src/file.h:12:10: fatal error: gmp.h: No such file or directory
+   12 | #include <gmp.h>
+      |          ^~~~~~~
+compilation terminated.
+In file included from /workspace/scratch/f04b383072c7/wide256/src/gint.h:14,
+                 from /workspace/scratch/f04b383072c7/wide256/src/transform.h:18,
+                 from /workspace/scratch/f04b383072c7/wide256/src/transformGPU.h:15,
+                 from /workspace/scratch/f04b383072c7/wide256/src/transform_ocl.cpp:10:
+/workspace/scratch/f04b383072c7/wide256/src/file.h:12:10: fatal error: gmp.h: No such file or directory
+   12 | #include <gmp.h>
+      |          ^~~~~~~
+compilation terminated.
+Traceback (most recent call last):
+  File "/workspace/scratch/f04b383072c7/wide256/tests/check_wide256_dispatch.py", line 11, in <module>
+    subprocess.run([os.environ.get('CXX','c++'),'-O2','-std=c++17','-DGPU',
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['c++', '-O2', '-std=c++17', '-DGPU', '-DGENEFER_GPU_WIDE_SQUARE23_WG256=0', '-I/workspace/scratch/f04b383072c7/wide256/Khronos', '-I/workspace/scratch/f04b383072c7/wide256/src', '/workspace/scratch/f04b383072c7/wide256/tests/mock_opencl/drive.cpp', '/workspace/scratch/f04b383072c7/wide256/tests/mock_opencl/mock.cpp', '/workspace/scratch/f04b383072c7/wide256/src/transform_ocl.cpp', '/workspace/scratch/7faa268ff0a4/deps/usr/lib/x86_64-linux-gnu/libgmp.a', '-l:libOpenCL.so.1', '-o', '/tmp/tmp1m6i6cw4/host0']' returned non-zero exit status 1.
