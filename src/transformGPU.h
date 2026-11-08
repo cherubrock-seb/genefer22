@@ -1073,6 +1073,8 @@ public:
 #endif
 #if defined(TUNE)
 		src << "#define ALL_FUNC\t" << 1 << std::endl;
+#elif GENEFER_GPU_AMD_GFN22_PLAN_8_8_6 && VSIZE == 4
+		src << "#define GENEFER_AMD_GFN22_PLAN_8_8_6_KERNELS\t" << 1 << std::endl;
 #endif
 
 		src << "#define NORM_WG_SZ\t" << _pEngine->getNormWGsize() << std::endl;
