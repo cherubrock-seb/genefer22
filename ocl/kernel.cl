@@ -1494,7 +1494,7 @@ void backward64_11(__global VTYPE * restrict const zg, __global const uint_32 * 
 	forward_4(pq, 4 * CHUNK256, &Zi[CHUNK256 * k4], w, sj / 4); \
 	forward_4o(pq, (sz_t)1 << lm, zo, 1 * CHUNK256, &Zi[CHUNK256 * 4 * threadIdx], w, sj / 1);
 
-#if defined(ALL_FUNC) || defined(GENEFER_AMD_GFN22_PLAN_8_8_6_KERNELS)
+#if defined(ALL_FUNC)
 __kernel
 ATTR_256()
 void forward256(__global VTYPE * restrict const zg, __global const uint_32 * restrict const wg, const int lm, const unsigned int s)
@@ -1523,7 +1523,7 @@ void forward256_0(__global VTYPE * restrict const zg, __global const uint_32 * r
 	const sz_t k16 = ((4 * threadIdx) & ~(4 * 16 - 1)) + (threadIdx % 16); \
 	backward_4(pq, 16 * CHUNK256, &Zi[CHUNK256 * k16], wi, sji / 16);
 
-#if defined(ALL_FUNC) || defined(GENEFER_AMD_GFN22_PLAN_8_8_6_KERNELS)
+#if defined(ALL_FUNC)
 __kernel
 ATTR_256()
 void backward256(__global VTYPE * restrict const zg, __global const uint_32 * restrict const wg, const int lm, const unsigned int s)
